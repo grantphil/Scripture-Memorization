@@ -24,3 +24,15 @@ Then open <http://127.0.0.1:4173>. For automatic ESV lookup, paste your token fr
 ```bash
 npm run build
 ```
+
+## Publish with GitHub Pages
+
+This repository includes a GitHub Actions workflow at `.github/workflows/pages.yml` that publishes the static app to GitHub Pages whenever you push to `main` or `master`.
+
+1. Push this repository to GitHub.
+2. In GitHub, open **Settings → Pages** for the repository.
+3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+4. Push a commit to `main` or `master`, or run the **Deploy to GitHub Pages** workflow manually from the **Actions** tab.
+5. After the workflow succeeds, open the Pages URL shown in the workflow summary or in **Settings → Pages**.
+
+> Note: GitHub Pages hosts static files only, so it will publish the deck, study modes, local browser storage, and manual ESV paste/edit flow. The local `server.js` ESV proxy cannot run on GitHub Pages. To keep automatic ESV lookup on the public site, deploy `server.js` to a separate Node host or serverless function and update `requestEsvText` in `src/app.js` to call that endpoint.
