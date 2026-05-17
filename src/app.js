@@ -9,27 +9,26 @@ const BIBLE_BOOKS = [
 ];
 
 const STARTER_REFERENCES = [
-  ['Truth', 'John 8:31-32'],
-  ['Grace', 'John 1:16'],
-  ['Brotherhood', 'Proverbs 18:24'],
-  ['Relational Obedience', 'Proverbs 27:17'],
-  ['Adoption', 'Romans 8:15-16'],
-  ['Ambassador', '2 Corinthians 5:20'],
-  ['Things Above', 'Colossians 3:1'],
-  ['Worship', 'Romans 12:1-2'],
-  ['Prayer', 'Philippians 4:6-7'],
-  ['Listening to God', 'John 10:27'],
-  ['Priorities', 'Ephesians 5:15-16'],
-  ['First', 'Matthew 6:33'],
-  ['Blessing', '1 Peter 3:7'],
-  ['Purpose', 'Genesis 2:15'],
-  ['Work', 'Colossians 3:23-24'],
-  ['Example', 'Deuteronomy 6:5-7'],
-  ['Catalyst', '1 Corinthians 15:10'],
-  ['Abide', 'John 15:4'],
+  { title: 'Truth', reference: 'John 8:31-32' },
+  { title: 'Grace', reference: 'John 1:16' },
+  { title: 'Brotherhood', reference: 'Proverbs 18:24' },
+  { title: 'Relational Obedience', reference: 'Proverbs 27:17' },
+  { title: 'Adoption', reference: 'Romans 8:15-16' },
+  { title: 'Ambassador', reference: '2 Corinthians 5:20' },
+  { title: 'Things Above', reference: 'Colossians 3:1' },
+  { title: 'Worship', reference: 'Romans 12:1-2' },
+  { title: 'Prayer', reference: 'Philippians 4:6-7' },
+  { title: 'Listening to God', reference: 'John 10:27' },
+  { title: 'Priorities', reference: 'Ephesians 5:15-16' },
+  { title: 'First', reference: 'Matthew 6:33' },
+  { title: 'Blessing', reference: '1 Peter 3:7' },
+  { title: 'Purpose', reference: 'Genesis 2:15' },
+  { title: 'Work', reference: 'Colossians 3:23-24' },
+  { title: 'Example', reference: 'Deuteronomy 6:5-7' },
+  { title: 'Catalyst', reference: '1 Corinthians 15:10' },
+  { title: 'Abide', reference: 'John 15:4' },
 ];
-
-const STARTER_PASSAGES = STARTER_REFERENCES.map(([title, reference]) => ({
+const STARTER_PASSAGES = STARTER_REFERENCES.map(({ title, reference }) => ({
   id: `${slugify(title)}-${slugify(reference)}`,
   title,
   reference,
@@ -38,7 +37,6 @@ const STARTER_PASSAGES = STARTER_REFERENCES.map(([title, reference]) => ({
   memorized: false,
 }));
 const STORAGE_KEY = 'scripture-memory-passages-v2-esv';
-const ESV_API_TOKEN_KEY = 'scripture-memory-esv-api-token';
 
 let passages = loadPassages();
 let activeId = passages[0]?.id;
@@ -62,7 +60,6 @@ const elements = {
   lookupButton: document.querySelector('#lookupButton'),
   clearButton: document.querySelector('#clearButton'),
   lookupMessage: document.querySelector('#lookupMessage'),
-  esvTokenInput: document.querySelector('#esvTokenInput'),
   scriptureText: document.querySelector('#scriptureText'),
 };
 
@@ -149,7 +146,7 @@ function renderStudyCard() {
   const hasText = Boolean(activePassage.text);
   const scriptureHtml = hasText
     ? (revealed || studyMode === 'read' ? escapeHtml(activePassage.text) : hiddenPassageHtml(activePassage.text))
-    : 'ESV text is not embedded for copyright reasons. Add an ESV API token below and fetch this passage, or paste ESV text manually.';
+    : 'ESV text is not loaded yet. Use automatic lookup, or paste ESV text manually if this site is not connected to the lookup service.';
   elements.studyCard.innerHTML = `
     <div class="study-header">
       <div>
@@ -193,28 +190,8 @@ function render() {
   elements.lookupButton.textContent = `🔎 Look up ${currentReference()}`;
 }
 
-function getEsvToken() {
-  return elements.esvTokenInput.value.trim();
-}
-
-function saveEsvToken() {
-  const token = getEsvToken();
-  if (token) {
-    localStorage.setItem(ESV_API_TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(ESV_API_TOKEN_KEY);
-  }
-}
-
 async function requestEsvText(reference) {
-  const token = getEsvToken();
-  if (!token) {
-    throw new Error('Add an ESV API token before automatic lookup.');
-  }
-
-  const response = await fetch(`/api/esv?reference=${encodeURIComponent(reference)}`, {
-    headers: { 'X-ESV-Token': token },
-  });
+  const response = await fetch(`/api/esv?reference=${encodeURIComponent(reference)}`);
   if (!response.ok) throw new Error('ESV passage lookup was unavailable.');
   const data = await response.json();
   const passage = data.passages?.join(' ').replace(/\s+/g, ' ').trim();
@@ -224,7 +201,6 @@ async function requestEsvText(reference) {
 
 async function fetchScripture() {
   const reference = currentReference();
-  saveEsvToken();
   setMessage(`Looking up ${reference} in the ESV...`);
   elements.lookupButton.disabled = true;
   try {
@@ -240,7 +216,6 @@ async function fetchScripture() {
 async function fetchActivePassage() {
   const activePassage = passages.find((passage) => passage.id === activeId);
   if (!activePassage) return;
-  saveEsvToken();
   setMessage(`Looking up ${activePassage.reference} in the ESV...`);
   try {
     const text = await requestEsvText(activePassage.reference);
@@ -307,8 +282,6 @@ function wireEvents() {
   [elements.bookSelect, elements.chapterInput, elements.startVerseInput, elements.endVerseInput].forEach((field) => {
     field.addEventListener('input', render);
   });
-  elements.esvTokenInput.value = localStorage.getItem(ESV_API_TOKEN_KEY) || '';
-  elements.esvTokenInput.addEventListener('input', saveEsvToken);
   elements.lookupButton.addEventListener('click', fetchScripture);
   elements.clearButton.addEventListener('click', () => {
     elements.scriptureText.value = '';
@@ -345,5 +318,41 @@ function wireEvents() {
   });
 }
 
+async function loadGeneratedStarterPassages() {
+  try {
+    const response = await fetch('src/starter-passages.generated.json', { cache: 'no-store' });
+    if (!response.ok) return;
+    const generatedPassages = await response.json();
+    if (!Array.isArray(generatedPassages) || !generatedPassages.length) return;
+
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (Array.isArray(saved) && saved.length) return;
+
+    passages = generatedPassages;
+    activeId = passages[0]?.id;
+    render();
+  } catch (error) {
+    // The generated file is optional for local development and Pages builds without a secret.
+  }
+}
+
+async function hydrateMissingStarterText() {
+  const missing = passages.filter((passage) => !passage.text);
+  if (!missing.length) return;
+
+  for (const passage of missing) {
+    try {
+      const text = await requestEsvText(passage.reference);
+      passages = passages.map((candidate) => candidate.id === passage.id ? { ...candidate, text, translation: 'ESV' } : candidate);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(passages));
+      render();
+    } catch (error) {
+      setMessage('Automatic ESV lookup is not available here. If this is GitHub Pages, add the ESV_API_TOKEN repository secret and redeploy, or use a hosted API proxy for new lookups.');
+      return;
+    }
+  }
+}
+
 wireEvents();
 render();
+loadGeneratedStarterPassages().then(hydrateMissingStarterText);

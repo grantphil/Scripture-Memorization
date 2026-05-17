@@ -29,6 +29,11 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run build
 
+      - name: Fetch ESV starter passages
+        env:
+          ESV_API_TOKEN: ${{ secrets.ESV_API_TOKEN }}
+        run: npm run fetch:esv
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

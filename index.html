@@ -38,7 +38,7 @@
         <div>
           <p class="eyebrow">＋ Add Scripture</p>
           <h2>Choose a reference, fetch the text, then name the card.</h2>
-          <p>Lookup uses the ESV API through the local app server when you add a token. Because ESV text is copyrighted, the app stores only your locally fetched or pasted passage text in your browser.</p>
+          <p>Lookup uses a private ESV API token configured on the server or in GitHub Actions, so users never need to enter or see the token. Because ESV text is copyrighted, fetched or pasted passage text is stored only in your browser.</p>
         </div>
         <form id="addForm" class="add-form">
           <label>
@@ -68,10 +68,6 @@
             <button id="clearButton" type="button" class="ghost">↺ Clear text</button>
           </div>
           <p id="lookupMessage" class="lookup-message hidden"></p>
-          <label>
-            ESV API token (stored only in this browser)
-            <input id="esvTokenInput" type="password" placeholder="Paste your api.esv.org token for automatic ESV lookup" />
-          </label>
           <label>
             Scripture text (ESV)
             <textarea id="scriptureText" placeholder="Fetched ESV scripture text appears here. You can also paste or edit ESV text before saving."></textarea>

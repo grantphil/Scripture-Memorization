@@ -34,7 +34,12 @@ function serveStatic(requestPath, response) {
   });
 }
 
-function fetchEsv(reference, token, response) {
+function fetchEsv(reference, response) {
+  const token = process.env.ESV_API_TOKEN;
+  if (!token) {
+    send(response, 503, JSON.stringify({ error: 'ESV_API_TOKEN is not configured on the server.' }));
+    return;
+  }
   const params = new URLSearchParams({
     q: reference,
     'include-passage-references': 'false',
@@ -67,12 +72,11 @@ const server = http.createServer((request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   if (url.pathname === '/api/esv') {
     const reference = url.searchParams.get('reference');
-    const token = request.headers['x-esv-token'];
-    if (!reference || !token) {
-      send(response, 400, JSON.stringify({ error: 'Reference and ESV token are required.' }));
+    if (!reference) {
+      send(response, 400, JSON.stringify({ error: 'Reference is required.' }));
       return;
     }
-    fetchEsv(reference, token, response);
+    fetchEsv(reference, response);
     return;
   }
   serveStatic(url.pathname, response);
