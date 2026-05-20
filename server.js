@@ -19,7 +19,8 @@ function send(response, status, body, type = 'application/json; charset=utf-8') 
 }
 
 function serveStatic(requestPath, response) {
-  const safePath = path.normalize(requestPath).replace(/^\.{2,}(\/|\\|$)/, '');
+  const relativePath = requestPath === '/' ? 'index.html' : requestPath.replace(/^\/+/, '');
+  const safePath = path.normalize(relativePath).replace(/^\.{2,}(\/|\\|$)/, '');
   const filePath = path.join(ROOT, safePath === '/' ? 'index.html' : safePath);
   if (!filePath.startsWith(ROOT)) {
     send(response, 403, 'Forbidden', 'text/plain; charset=utf-8');
