@@ -4,10 +4,11 @@ A lightweight, browser-based scripture memorization app for personal studies and
 
 ## Features
 
-- Starts with the requested starter deck of 18 ESV scripture references. ESV passage text is fetched or pasted locally rather than embedded in the repository.
+- Starts with the requested starter deck of 18 ESV scripture references.
 - Stores cards in the browser with `localStorage` so added passages and memorized progress persist locally.
-- Lets you add a card title/name, select a Bible book, chapter, and verse range, then look up the ESV passage automatically through a private server-side token.
-- Supports manual ESV paste/edit when the online lookup service is unavailable.
+- Uses GitHub Actions and a private GitHub secret to generate ESV passage text for the static GitHub Pages app.
+- Lets you add a card title/name, select a Bible book, chapter, and verse range, then fill ESV text from the generated GitHub passage library.
+- Supports manual ESV paste/edit when a reference has not been generated yet.
 - Includes study modes for reading, hiding key words, and showing first-letter prompts.
 - Tracks memorized cards and provides shuffle practice.
 
@@ -18,7 +19,7 @@ export ESV_API_TOKEN=your_private_token_here
 npm start
 ```
 
-Set `ESV_API_TOKEN` in your shell before starting the app so the server can perform automatic ESV lookup without exposing the token in the browser. Then open <http://127.0.0.1:4173>.
+Set `ESV_API_TOKEN` in your shell before starting the app so the local server can perform automatic ESV lookup without exposing the token in the browser. Then open <http://127.0.0.1:4173>.
 
 ## Check syntax
 
@@ -33,26 +34,13 @@ Do not commit the ESV API token to this repository. A committed token is visible
 Use one of these private options instead:
 
 - **Local development:** copy `.env.example` to `.env`, put the real token in `.env`, and export it in your shell before running `npm start`. `.env` is ignored by git.
-- **Full public app:** deploy to Vercel and add the real token as a private project environment variable named `ESV_API_TOKEN`. Vercel runs `api/esv.js` as a serverless function, so new passage lookup works without exposing the token.
-- **GitHub Pages static fallback:** add the real token as a GitHub Actions repository secret named `ESV_API_TOKEN` under **Settings -> Secrets and variables -> Actions**. The deployment workflow reads that secret without committing it, but Pages can only pre-generate the starter deck.
+- **GitHub Pages deployment:** add the real token as a GitHub Actions repository secret named `ESV_API_TOKEN` under **Settings -> Secrets and variables -> Actions**. GitHub Actions reads that secret while generating passage text, without committing the token.
 
 The `npm run build` command includes a secret scan that fails if a committed file contains a token-shaped value.
 
-## Recommended: publish with Vercel for full lookup
-
-Use Vercel when you want the public app to look up any new ESV reference from the Add Scripture form.
-
-1. Go to <https://vercel.com/new> and import this GitHub repository.
-2. Keep the framework preset as **Other** if Vercel does not auto-detect one.
-3. Add a project environment variable named `ESV_API_TOKEN` with your private ESV API token as the value.
-4. Deploy the project.
-5. Open the Vercel URL and try adding a reference that is not in the starter deck.
-
-The browser calls `/api/esv?reference=...`. On Vercel, that route is handled by `api/esv.js`, which reads `ESV_API_TOKEN` server-side and forwards the request to the ESV API. The token is never sent to the browser.
-
 ## Publish with GitHub Pages
 
-This repository includes a GitHub Actions workflow at `.github/workflows/pages.yml` that publishes the static app to GitHub Pages whenever you push to `main` or `master`. The workflow can use a GitHub Actions secret named `ESV_API_TOKEN` to fetch the starter ESV passages during deployment without committing the token.
+This repository includes a GitHub Actions workflow at `.github/workflows/pages.yml` that publishes the static app to GitHub Pages whenever you push to `main` or `master`. The workflow uses the `ESV_API_TOKEN` secret to fetch ESV passage text during deployment and publishes the generated JSON file with the site.
 
 1. Push this repository to GitHub.
 2. In GitHub, open **Settings -> Secrets and variables -> Actions** and add a repository secret named `ESV_API_TOKEN` with your ESV API token as the value.
@@ -61,4 +49,24 @@ This repository includes a GitHub Actions workflow at `.github/workflows/pages.y
 5. Push a commit to `main` or `master`, or run the **Deploy to GitHub Pages** workflow manually from the **Actions** tab.
 6. After the workflow succeeds, open the Pages URL shown in the workflow summary or in **Settings -> Pages**.
 
-> Note: GitHub Pages hosts static files only. It can publish the generated starter ESV passages, but it cannot run the private `/api/esv` lookup route for brand-new references. Use Vercel for the full app experience.
+## Add a new ESV passage with GitHub
+
+GitHub Pages is static, so it cannot safely call the ESV API with your private token from a visitor's browser. To add a new reference to the generated lookup library, use the included GitHub Actions workflow:
+
+1. Open the repository on GitHub.
+2. Go to **Actions**.
+3. Select **Add ESV Passage**.
+4. Click **Run workflow**.
+5. Enter the Bible reference, such as `Romans 5:8`.
+6. Optionally enter a card title, such as `Grace`.
+7. Click **Run workflow**.
+8. Wait for the workflow to commit the reference, fetch ESV text, and deploy GitHub Pages.
+9. Open the app and look up that reference from the Add Scripture form.
+
+You can also edit `src/extra-references.json` directly in GitHub, then run the **Deploy to GitHub Pages** workflow. The file should stay as a JSON array:
+
+```json
+[
+  { "title": "Grace", "reference": "Romans 5:8" }
+]
+```
