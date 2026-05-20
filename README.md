@@ -4,12 +4,12 @@ A lightweight, browser-based scripture memorization app for personal studies and
 
 ## Features
 
-- Starts with the requested starter deck of 18 scripture references.
+- Starts with the requested starter deck of 18 ESV scripture references.
 - Stores cards in the browser with `localStorage` so added passages and memorized progress persist locally.
 - Uses GitHub Actions and a private GitHub secret to generate ESV passage text for the static GitHub Pages app.
-- Generates a full public-domain World English Bible (WEB) lookup library during the GitHub Pages deploy, so brand-new references can be added without a live API call.
-- Lets you add a card title/name, select a Bible book, chapter, and verse range, then fill scripture text from the generated GitHub passage libraries.
-- Supports manual paste/edit when you want to supply your own text.
+- Lets you add a card title/name, select a Bible book, chapter, and verse range, then fill ESV text from the generated GitHub passage library when available.
+- Links directly to the selected passage on ESV.org so you can copy and paste ESV text for references that are not generated yet.
+- Supports manual paste/edit when you want to supply ESV text yourself.
 - Includes study modes for reading, hiding key words, and showing first-letter prompts.
 - Tracks memorized cards and provides shuffle practice.
 
@@ -17,11 +17,10 @@ A lightweight, browser-based scripture memorization app for personal studies and
 
 ```bash
 export ESV_API_TOKEN=your_private_token_here
-npm run build:web
 npm start
 ```
 
-Run `npm run build:web` once to generate the local public-domain WEB lookup file. Set `ESV_API_TOKEN` in your shell before starting the app if you also want the local server to perform ESV lookup without exposing the token in the browser. Then open <http://127.0.0.1:4173>.
+Set `ESV_API_TOKEN` in your shell before starting the app if you want the local server to perform ESV lookup without exposing the token in the browser. Then open <http://127.0.0.1:4173>.
 
 ## Check syntax
 
@@ -40,15 +39,18 @@ Use one of these private options instead:
 
 The `npm run build` command includes a secret scan that fails if a committed file contains a token-shaped value.
 
-## Full-Bible lookup without a runtime API
+## ESV-only lookup without exposing the token
 
-The app cannot legally cache the full ESV Bible in this repository. The ESV API terms limit copying/downloading stored text to small portions of the Bible, so this project keeps ESV text limited to generated references.
+The app cannot legally cache the full ESV Bible in this repository, and GitHub Pages cannot safely call the ESV API from a visitor's browser because the token must stay private.
 
-For full-Bible lookup, the GitHub Pages workflow runs `npm run build:web` and generates `src/web-bible.generated.json` from Project Gutenberg's public-domain World English Bible (WEB). That generated file is uploaded with the GitHub Pages site, so visitors can look up new references from GitHub Pages without calling the ESV API or seeing any private token.
+To keep the app ESV-only, the Add Scripture form now works in two ways:
+
+- If the reference is already in the generated ESV library, **Auto-fill saved ESV** fills the text automatically.
+- If it is not generated yet, the form links directly to the selected passage on ESV.org so the user can copy the ESV text, paste it into the app, and save the card.
 
 ## Publish with GitHub Pages
 
-This repository includes a GitHub Actions workflow at `.github/workflows/pages.yml` that publishes the static app to GitHub Pages whenever you push to `main` or `master`. The workflow uses the `ESV_API_TOKEN` secret to fetch ESV passage text during deployment and publishes the generated JSON file with the site.
+This repository includes a GitHub Actions workflow at `.github/workflows/pages.yml` that publishes the static app to GitHub Pages whenever you push to `main` or `master`. The workflow uses the `ESV_API_TOKEN` secret to fetch ESV passage text during deployment and publishes the generated ESV JSON file with the site.
 
 1. Push this repository to GitHub.
 2. In GitHub, open **Settings -> Secrets and variables -> Actions** and add a repository secret named `ESV_API_TOKEN` with your ESV API token as the value.
@@ -57,13 +59,13 @@ This repository includes a GitHub Actions workflow at `.github/workflows/pages.y
 5. Push a commit to `main` or `master`, or run the **Deploy to GitHub Pages** workflow manually from the **Actions** tab.
 6. After the workflow succeeds, open the Pages URL shown in the workflow summary or in **Settings -> Pages**.
 
-The deploy workflow publishes both generated ESV references, when `ESV_API_TOKEN` is configured, and the generated WEB full-Bible lookup library.
+The deploy workflow publishes generated ESV references when `ESV_API_TOKEN` is configured.
 
 ## Add a new passage
 
-For normal use, open the app, choose a book/chapter/verse range, click **Look up**, and save the card. If an ESV copy exists in the generated ESV library the app uses that; otherwise it uses the generated WEB library.
+For normal use, open the app, choose a book/chapter/verse range, then either click **Auto-fill saved ESV** or open the passage on ESV.org and paste the ESV text into the app.
 
-GitHub Pages is static, so it cannot safely call the ESV API with your private token from a visitor's browser. If you specifically want a new reference to use ESV text instead of the WEB fallback, use the included GitHub Actions workflow:
+If you want a new reference to auto-fill from the generated ESV library in the future, use the included GitHub Actions workflow:
 
 1. Open the repository on GitHub.
 2. Go to **Actions**.
@@ -72,7 +74,7 @@ GitHub Pages is static, so it cannot safely call the ESV API with your private t
 5. Enter the Bible reference, such as `Romans 5:8`.
 6. Optionally enter a card title, such as `Grace`.
 7. Click **Run workflow**.
-8. Wait for the workflow to commit the reference, fetch ESV text, rebuild the WEB library, and deploy GitHub Pages.
+8. Wait for the workflow to commit the reference, fetch ESV text, and deploy GitHub Pages.
 9. Open the app and look up that reference from the Add Scripture form.
 
 You can also edit `src/extra-references.json` directly in GitHub, then run the **Deploy to GitHub Pages** workflow. The file should stay as a JSON array:
