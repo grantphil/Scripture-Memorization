@@ -37,8 +37,8 @@
       <section class="add-panel">
         <div>
           <p class="eyebrow">&#65291; Add Scripture</p>
-          <h2>Choose a reference, fetch the text, then name the card.</h2>
-          <p>Lookup uses generated ESV passages when they are available, then falls back to a public-domain WEB Bible library served from GitHub Pages. New cards can be added without exposing a private API token in the browser.</p>
+          <h2>Add an ESV memory card.</h2>
+          <p>Some passages can auto-fill from the saved ESV library. For anything else, open the passage on ESV.org, copy the text, paste it here, and save the card.</p>
         </div>
         <form id="addForm" class="add-form">
           <label>
@@ -64,13 +64,14 @@
             </label>
           </div>
           <div class="lookup-row">
-            <button id="lookupButton" type="button">&#128269; Look up John 3:16</button>
+            <button id="lookupButton" type="button">&#128269; Auto-fill saved ESV</button>
+            <a id="esvLink" class="button-link esv-link" href="https://www.esv.org/John+3%3A16/" target="_blank" rel="noopener">Open John 3:16 on ESV.org</a>
             <button id="clearButton" type="button" class="ghost">&#8617; Clear text</button>
           </div>
           <p id="lookupMessage" class="lookup-message hidden"></p>
           <label>
             Scripture text
-            <textarea id="scriptureText" placeholder="Fetched scripture text appears here. You can also paste or edit text before saving."></textarea>
+            <textarea id="scriptureText" placeholder="Paste ESV text here, or auto-fill from the saved ESV library when available."></textarea>
           </label>
           <button class="save-button" type="submit">&#65291; Add to memory deck</button>
         </form>
