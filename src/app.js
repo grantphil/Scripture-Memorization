@@ -37,14 +37,12 @@ const STARTER_PASSAGES = STARTER_REFERENCES.map(({ title, reference }) => ({
   memorized: false,
 }));
 const STORAGE_KEY = 'scripture-memory-passages-v2-esv';
-const OFFLINE_BIBLE_PATH = 'src/web-bible.generated.json';
 
 let passages = loadPassages();
 let activeId = passages[0]?.id;
 let studyMode = 'read';
 let revealed = true;
 let generatedPassagesPromise;
-let offlineBiblePromise;
 let pendingTranslation = 'ESV';
 const generatedPassageCache = new Map();
 
@@ -63,6 +61,7 @@ const elements = {
   startVerseInput: document.querySelector('#startVerseInput'),
   endVerseInput: document.querySelector('#endVerseInput'),
   lookupButton: document.querySelector('#lookupButton'),
+  esvLink: document.querySelector('#esvLink'),
   clearButton: document.querySelector('#clearButton'),
   lookupMessage: document.querySelector('#lookupMessage'),
   scriptureText: document.querySelector('#scriptureText'),
@@ -71,7 +70,14 @@ const elements = {
 function loadPassages() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    return Array.isArray(saved) && saved.length ? saved : STARTER_PASSAGES;
+    if (!Array.isArray(saved) || !saved.length) return STARTER_PASSAGES;
+    const esvOnlyPassages = saved.map((passage) => (
+      passage.translation === 'WEB' ? { ...passage, text: '', translation: 'ESV' } : passage
+    ));
+    if (JSON.stringify(esvOnlyPassages) !== JSON.stringify(saved)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(esvOnlyPassages));
+    }
+    return esvOnlyPassages;
   } catch (error) {
     return STARTER_PASSAGES;
   }
@@ -109,29 +115,13 @@ function currentReference() {
   return `${book} ${chapter}:${startVerse}${endVerse}`;
 }
 
-function parseReference(reference) {
-  const normalized = reference.replace(/\s+/g, ' ').trim();
-  const lowerReference = normalized.toLowerCase();
-  const book = [...BIBLE_BOOKS]
-    .sort((left, right) => right.length - left.length)
-    .find((candidate) => lowerReference.startsWith(`${candidate.toLowerCase()} `));
+function esvUrl(reference) {
+  return `https://www.esv.org/${encodeURIComponent(reference).replace(/%20/g, '+')}/`;
+}
 
-  if (!book) return null;
-
-  const verseRange = normalized.slice(book.length).trim().match(/^(\d+):(\d+)(?:\s*-\s*(\d+))?$/);
-  if (!verseRange) return null;
-
-  const chapter = Number(verseRange[1]);
-  const startVerse = Number(verseRange[2]);
-  const endVerse = Number(verseRange[3] || verseRange[2]);
-  if (!chapter || !startVerse || !endVerse || endVerse < startVerse || endVerse - startVerse > 250) return null;
-
-  return {
-    book,
-    chapter: String(chapter),
-    startVerse,
-    endVerse,
-  };
+function isLocalServer() {
+  const hostname = globalThis.location?.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1';
 }
 
 function setMessage(message) {
@@ -180,7 +170,7 @@ function renderStudyCard() {
   const hasText = Boolean(activePassage.text);
   const scriptureHtml = hasText
     ? (revealed || studyMode === 'read' ? escapeHtml(activePassage.text) : hiddenPassageHtml(activePassage.text))
-    : 'Scripture text is not loaded yet. Use automatic lookup, or paste text manually.';
+    : 'ESV text is not loaded yet. Auto-fill it if available, or open the passage on ESV.org and paste it manually.';
   elements.studyCard.innerHTML = `
     <div class="study-header">
       <div>
@@ -200,7 +190,8 @@ function renderStudyCard() {
 
     <div class="study-actions">
       <button data-toggle-reveal ${hasText ? '' : 'disabled'}>${revealed ? '\u{1f648} Practice hidden' : '\u{1f441} Reveal text'}</button>
-      <button data-fetch-active>\u{1f50e} Fetch scripture text</button>
+      <button data-fetch-active>\u{1f50e} Auto-fill saved ESV</button>
+      <a class="button-link esv-link" href="${esvUrl(activePassage.reference)}" target="_blank" rel="noopener">Open on ESV.org</a>
       <button data-shuffle>\u{1f500} Shuffle</button>
       <button data-toggle-memorized class="${activePassage.memorized ? 'success' : ''}">\u2713 ${activePassage.memorized ? 'Memorized' : 'Mark memorized'}</button>
     </div>
@@ -221,44 +212,11 @@ function render() {
   renderProgress();
   renderDeck();
   renderStudyCard();
-  elements.lookupButton.textContent = `\u{1f50e} Look up ${currentReference()}`;
-}
-
-async function loadOfflineBible() {
-  if (!offlineBiblePromise) {
-    offlineBiblePromise = fetch(OFFLINE_BIBLE_PATH, { cache: 'force-cache' })
-      .then((response) => {
-        if (!response.ok) throw new Error('The offline Bible library has not been generated yet.');
-        return response.json();
-      })
-      .catch((error) => {
-        offlineBiblePromise = null;
-        throw error;
-      });
-  }
-
-  return offlineBiblePromise;
-}
-
-async function requestOfflineBibleText(reference) {
-  const parsedReference = parseReference(reference);
-  if (!parsedReference) throw new Error(`${reference} is not a supported lookup format.`);
-
-  const bible = await loadOfflineBible();
-  const chapter = bible.books?.[parsedReference.book]?.[parsedReference.chapter];
-  if (!chapter) throw new Error(`${reference} was not found in the offline Bible library.`);
-
-  const verses = [];
-  for (let verse = parsedReference.startVerse; verse <= parsedReference.endVerse; verse += 1) {
-    const verseText = chapter[String(verse)];
-    if (!verseText) throw new Error(`${reference} was not found in the offline Bible library.`);
-    verses.push(verseText);
-  }
-
-  return {
-    text: verses.join(' '),
-    translation: bible.translation || 'WEB',
-  };
+  const reference = currentReference();
+  elements.lookupButton.textContent = `\u{1f50e} Auto-fill saved ESV`;
+  elements.lookupButton.setAttribute('aria-label', `Auto-fill saved ESV for ${reference}`);
+  elements.esvLink.href = esvUrl(reference);
+  elements.esvLink.textContent = `Open ${reference} on ESV.org`;
 }
 
 async function requestScriptureText(reference) {
@@ -283,10 +241,8 @@ async function requestScriptureText(reference) {
     };
   }
 
-  try {
-    return await requestOfflineBibleText(reference);
-  } catch (offlineError) {
-    // Local development can still use the small private-token server when the generated WEB file is absent.
+  if (!isLocalServer()) {
+    throw new Error(`${reference} is not in the generated ESV library yet. Open it on ESV.org, copy the ESV text, paste it below, then save it.`);
   }
 
   const response = await fetch(`/api/esv?reference=${encodeURIComponent(reference)}`);
@@ -307,15 +263,15 @@ async function requestScriptureText(reference) {
 
 async function fetchScripture() {
   const reference = currentReference();
-  setMessage(`Looking up ${reference}...`);
+  setMessage(`Checking saved ESV text for ${reference}...`);
   elements.lookupButton.disabled = true;
   try {
     const passage = await requestScriptureText(reference);
     elements.scriptureText.value = passage.text;
     pendingTranslation = passage.translation;
-    setMessage(`Found ${reference} in the ${passage.translation}. Add a title, review the text, then save it.`);
+    setMessage(`Found ${reference} in your saved ESV library. Add a title, review the text, then save it.`);
   } catch (error) {
-    setMessage(`${error.message} You can still paste scripture text below and save it.`);
+    setMessage(error.message);
   } finally {
     elements.lookupButton.disabled = false;
   }
@@ -330,7 +286,7 @@ async function fetchActivePassage() {
     updatePassage(activePassage.id, { text: passage.text, translation: passage.translation });
     setMessage(`${activePassage.title} now has ${passage.translation} text.`);
   } catch (error) {
-    setMessage(`${error.message} You can paste scripture text into the add form if needed.`);
+    setMessage(error.message);
   }
 }
 
@@ -464,7 +420,7 @@ function rememberGeneratedPassages(generatedPassages) {
 function mergeGeneratedTextIntoDeck() {
   let changed = false;
   passages = passages.map((passage) => {
-    if (passage.text) return passage;
+    if (passage.text && (passage.translation || 'ESV') === 'ESV') return passage;
     const generatedPassage = generatedPassageCache.get(normalizeReference(passage.reference));
     if (!generatedPassage?.text) return passage;
     changed = true;
