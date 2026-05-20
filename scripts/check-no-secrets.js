@@ -1,9 +1,37 @@
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
-const trackedFiles = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
-  .split('\n')
-  .filter(Boolean);
+const skippedDirectories = new Set(['.git', 'node_modules', '_site']);
+
+function listGitFiles() {
+  try {
+    return execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean);
+  } catch (error) {
+    return null;
+  }
+}
+
+function listProjectFiles(directory = process.cwd()) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (skippedDirectories.has(entry.name)) continue;
+
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listProjectFiles(fullPath));
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(path.relative(process.cwd(), fullPath));
+    }
+  }
+  return files;
+}
+
+const trackedFiles = listGitFiles() || listProjectFiles();
 
 const secretPatterns = [
   {
