@@ -42,6 +42,8 @@ let passages = loadPassages();
 let activeId = passages[0]?.id;
 let studyMode = 'read';
 let revealed = true;
+let generatedPassagesPromise;
+const generatedPassageCache = new Map();
 
 const elements = {
   progressPercent: document.querySelector('#progressPercent'),
@@ -80,6 +82,10 @@ function persist(nextPassages) {
 
 function slugify(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+function normalizeReference(reference) {
+  return reference.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function escapeHtml(value) {
@@ -131,7 +137,7 @@ function renderDeck() {
     <button class="passage-row ${passage.id === activeId ? 'active' : ''}" data-select-id="${passage.id}">
       <strong>${escapeHtml(passage.title)}</strong>
       <span>${escapeHtml(passage.reference)}</span>
-      ${passage.memorized ? '<span class="memorized-badge" aria-label="memorized">✓</span>' : ''}
+      ${passage.memorized ? '<span class="memorized-badge" aria-label="memorized">\u2713</span>' : ''}
     </button>
   `).join('') || '<p class="empty-state">No cards match that search.</p>';
 }
@@ -150,10 +156,10 @@ function renderStudyCard() {
   elements.studyCard.innerHTML = `
     <div class="study-header">
       <div>
-        <p class="eyebrow">☰ ${escapeHtml(activePassage.reference)} · ${escapeHtml(activePassage.translation || 'ESV')}</p>
+        <p class="eyebrow">\u2630 ${escapeHtml(activePassage.reference)} \u00b7 ${escapeHtml(activePassage.translation || 'ESV')}</p>
         <h2>${escapeHtml(activePassage.title)}</h2>
       </div>
-      <button class="icon-button danger" data-delete-id="${activePassage.id}" aria-label="delete passage">🗑</button>
+      <button class="icon-button danger" data-delete-id="${activePassage.id}" aria-label="delete passage">\u{1F5D1}</button>
     </div>
 
     <div class="mode-switcher" aria-label="study modes">
@@ -165,10 +171,10 @@ function renderStudyCard() {
     <blockquote class="scripture-text">${scriptureHtml}</blockquote>
 
     <div class="study-actions">
-      <button data-toggle-reveal ${hasText ? '' : 'disabled'}>${revealed ? '🙈 Practice hidden' : '👁 Reveal text'}</button>
-      <button data-fetch-active>🔎 Fetch ESV text</button>
-      <button data-shuffle>🔀 Shuffle</button>
-      <button data-toggle-memorized class="${activePassage.memorized ? 'success' : ''}">✓ ${activePassage.memorized ? 'Memorized' : 'Mark memorized'}</button>
+      <button data-toggle-reveal ${hasText ? '' : 'disabled'}>${revealed ? '\u{1F648} Practice hidden' : '\u{1F441} Reveal text'}</button>
+      <button data-fetch-active>\u{1F50E} Fetch ESV text</button>
+      <button data-shuffle>\u{1F500} Shuffle</button>
+      <button data-toggle-memorized class="${activePassage.memorized ? 'success' : ''}">\u2713 ${activePassage.memorized ? 'Memorized' : 'Mark memorized'}</button>
     </div>
   `;
 }
@@ -187,10 +193,21 @@ function render() {
   renderProgress();
   renderDeck();
   renderStudyCard();
-  elements.lookupButton.textContent = `🔎 Look up ${currentReference()}`;
+  elements.lookupButton.textContent = `\u{1F50E} Look up ${currentReference()}`;
 }
 
 async function requestEsvText(reference) {
+  const normalizedReference = normalizeReference(reference);
+  let cachedPassage = generatedPassageCache.get(normalizedReference);
+  if (!cachedPassage && generatedPassagesPromise) {
+    await generatedPassagesPromise;
+    cachedPassage = generatedPassageCache.get(normalizedReference);
+  }
+  if (cachedPassage?.text) return cachedPassage.text;
+
+  const savedPassage = passages.find((passage) => normalizeReference(passage.reference) === normalizedReference && passage.text);
+  if (savedPassage) return savedPassage.text;
+
   const response = await fetch(`/api/esv?reference=${encodeURIComponent(reference)}`);
   if (!response.ok) throw new Error('ESV passage lookup was unavailable.');
   const data = await response.json();
@@ -324,9 +341,13 @@ async function loadGeneratedStarterPassages() {
     if (!response.ok) return;
     const generatedPassages = await response.json();
     if (!Array.isArray(generatedPassages) || !generatedPassages.length) return;
+    rememberGeneratedPassages(generatedPassages);
 
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (Array.isArray(saved) && saved.length) return;
+    if (Array.isArray(saved) && saved.length) {
+      if (mergeGeneratedTextIntoDeck()) render();
+      return;
+    }
 
     passages = generatedPassages;
     activeId = passages[0]?.id;
@@ -334,6 +355,31 @@ async function loadGeneratedStarterPassages() {
   } catch (error) {
     // The generated file is optional for local development and Pages builds without a secret.
   }
+}
+
+function rememberGeneratedPassages(generatedPassages) {
+  generatedPassages.forEach((passage) => {
+    if (passage?.reference && passage?.text) {
+      generatedPassageCache.set(normalizeReference(passage.reference), passage);
+    }
+  });
+}
+
+function mergeGeneratedTextIntoDeck() {
+  let changed = false;
+  passages = passages.map((passage) => {
+    if (passage.text) return passage;
+    const generatedPassage = generatedPassageCache.get(normalizeReference(passage.reference));
+    if (!generatedPassage?.text) return passage;
+    changed = true;
+    return {
+      ...passage,
+      text: generatedPassage.text,
+      translation: generatedPassage.translation || passage.translation || 'ESV',
+    };
+  });
+  if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(passages));
+  return changed;
 }
 
 async function hydrateMissingStarterText() {
@@ -355,4 +401,5 @@ async function hydrateMissingStarterText() {
 
 wireEvents();
 render();
-loadGeneratedStarterPassages().then(hydrateMissingStarterText);
+generatedPassagesPromise = loadGeneratedStarterPassages();
+generatedPassagesPromise.then(hydrateMissingStarterText);
