@@ -10,7 +10,7 @@
     <main class="app-shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">✦ Scripture Memory Studio</p>
+          <p class="eyebrow">&#10022; Scripture Memory Studio</p>
           <h1>Memorize Scripture with a deck that teaches, hides, and tracks.</h1>
           <p class="hero-copy">Start with your requested passages, look up new references automatically, and practice each card with gradual prompts instead of plain flashcards.</p>
         </div>
@@ -36,9 +36,9 @@
 
       <section class="add-panel">
         <div>
-          <p class="eyebrow">＋ Add Scripture</p>
+          <p class="eyebrow">&#65291; Add Scripture</p>
           <h2>Choose a reference, fetch the text, then name the card.</h2>
-          <p>Lookup uses a private ESV API token configured on the server or in GitHub Actions, so users never need to enter or see the token. Because ESV text is copyrighted, fetched or pasted passage text is stored only in your browser.</p>
+          <p>Lookup uses generated ESV passages when they are available, then falls back to a public-domain WEB Bible library served from GitHub Pages. New cards can be added without exposing a private API token in the browser.</p>
         </div>
         <form id="addForm" class="add-form">
           <label>
@@ -64,15 +64,15 @@
             </label>
           </div>
           <div class="lookup-row">
-            <button id="lookupButton" type="button">🔎 Look up John 3:16</button>
-            <button id="clearButton" type="button" class="ghost">↺ Clear text</button>
+            <button id="lookupButton" type="button">&#128269; Look up John 3:16</button>
+            <button id="clearButton" type="button" class="ghost">&#8617; Clear text</button>
           </div>
           <p id="lookupMessage" class="lookup-message hidden"></p>
           <label>
-            Scripture text (ESV)
-            <textarea id="scriptureText" placeholder="Fetched ESV scripture text appears here. You can also paste or edit ESV text before saving."></textarea>
+            Scripture text
+            <textarea id="scriptureText" placeholder="Fetched scripture text appears here. You can also paste or edit text before saving."></textarea>
           </label>
-          <button class="save-button" type="submit">＋ Add to memory deck</button>
+          <button class="save-button" type="submit">&#65291; Add to memory deck</button>
         </form>
       </section>
     </main>
