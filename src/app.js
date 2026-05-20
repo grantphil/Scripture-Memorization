@@ -37,12 +37,15 @@ const STARTER_PASSAGES = STARTER_REFERENCES.map(({ title, reference }) => ({
   memorized: false,
 }));
 const STORAGE_KEY = 'scripture-memory-passages-v2-esv';
+const OFFLINE_BIBLE_PATH = 'src/web-bible.generated.json';
 
 let passages = loadPassages();
 let activeId = passages[0]?.id;
 let studyMode = 'read';
 let revealed = true;
 let generatedPassagesPromise;
+let offlineBiblePromise;
+let pendingTranslation = 'ESV';
 const generatedPassageCache = new Map();
 
 const elements = {
@@ -106,6 +109,31 @@ function currentReference() {
   return `${book} ${chapter}:${startVerse}${endVerse}`;
 }
 
+function parseReference(reference) {
+  const normalized = reference.replace(/\s+/g, ' ').trim();
+  const lowerReference = normalized.toLowerCase();
+  const book = [...BIBLE_BOOKS]
+    .sort((left, right) => right.length - left.length)
+    .find((candidate) => lowerReference.startsWith(`${candidate.toLowerCase()} `));
+
+  if (!book) return null;
+
+  const verseRange = normalized.slice(book.length).trim().match(/^(\d+):(\d+)(?:\s*-\s*(\d+))?$/);
+  if (!verseRange) return null;
+
+  const chapter = Number(verseRange[1]);
+  const startVerse = Number(verseRange[2]);
+  const endVerse = Number(verseRange[3] || verseRange[2]);
+  if (!chapter || !startVerse || !endVerse || endVerse < startVerse || endVerse - startVerse > 250) return null;
+
+  return {
+    book,
+    chapter: String(chapter),
+    startVerse,
+    endVerse,
+  };
+}
+
 function setMessage(message) {
   elements.lookupMessage.textContent = message;
   elements.lookupMessage.classList.toggle('hidden', !message);
@@ -152,14 +180,14 @@ function renderStudyCard() {
   const hasText = Boolean(activePassage.text);
   const scriptureHtml = hasText
     ? (revealed || studyMode === 'read' ? escapeHtml(activePassage.text) : hiddenPassageHtml(activePassage.text))
-    : 'ESV text is not loaded yet. Use automatic lookup, or paste ESV text manually if this site is not connected to the lookup service.';
+    : 'Scripture text is not loaded yet. Use automatic lookup, or paste text manually.';
   elements.studyCard.innerHTML = `
     <div class="study-header">
       <div>
         <p class="eyebrow">\u2630 ${escapeHtml(activePassage.reference)} \u00b7 ${escapeHtml(activePassage.translation || 'ESV')}</p>
         <h2>${escapeHtml(activePassage.title)}</h2>
       </div>
-      <button class="icon-button danger" data-delete-id="${activePassage.id}" aria-label="delete passage">\u{1F5D1}</button>
+      <button class="icon-button danger" data-delete-id="${activePassage.id}" aria-label="delete passage">\u{1f5d1}</button>
     </div>
 
     <div class="mode-switcher" aria-label="study modes">
@@ -171,9 +199,9 @@ function renderStudyCard() {
     <blockquote class="scripture-text">${scriptureHtml}</blockquote>
 
     <div class="study-actions">
-      <button data-toggle-reveal ${hasText ? '' : 'disabled'}>${revealed ? '\u{1F648} Practice hidden' : '\u{1F441} Reveal text'}</button>
-      <button data-fetch-active>\u{1F50E} Fetch ESV text</button>
-      <button data-shuffle>\u{1F500} Shuffle</button>
+      <button data-toggle-reveal ${hasText ? '' : 'disabled'}>${revealed ? '\u{1f648} Practice hidden' : '\u{1f441} Reveal text'}</button>
+      <button data-fetch-active>\u{1f50e} Fetch scripture text</button>
+      <button data-shuffle>\u{1f500} Shuffle</button>
       <button data-toggle-memorized class="${activePassage.memorized ? 'success' : ''}">\u2713 ${activePassage.memorized ? 'Memorized' : 'Mark memorized'}</button>
     </div>
   `;
@@ -193,38 +221,101 @@ function render() {
   renderProgress();
   renderDeck();
   renderStudyCard();
-  elements.lookupButton.textContent = `\u{1F50E} Look up ${currentReference()}`;
+  elements.lookupButton.textContent = `\u{1f50e} Look up ${currentReference()}`;
 }
 
-async function requestEsvText(reference) {
+async function loadOfflineBible() {
+  if (!offlineBiblePromise) {
+    offlineBiblePromise = fetch(OFFLINE_BIBLE_PATH, { cache: 'force-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error('The offline Bible library has not been generated yet.');
+        return response.json();
+      })
+      .catch((error) => {
+        offlineBiblePromise = null;
+        throw error;
+      });
+  }
+
+  return offlineBiblePromise;
+}
+
+async function requestOfflineBibleText(reference) {
+  const parsedReference = parseReference(reference);
+  if (!parsedReference) throw new Error(`${reference} is not a supported lookup format.`);
+
+  const bible = await loadOfflineBible();
+  const chapter = bible.books?.[parsedReference.book]?.[parsedReference.chapter];
+  if (!chapter) throw new Error(`${reference} was not found in the offline Bible library.`);
+
+  const verses = [];
+  for (let verse = parsedReference.startVerse; verse <= parsedReference.endVerse; verse += 1) {
+    const verseText = chapter[String(verse)];
+    if (!verseText) throw new Error(`${reference} was not found in the offline Bible library.`);
+    verses.push(verseText);
+  }
+
+  return {
+    text: verses.join(' '),
+    translation: bible.translation || 'WEB',
+  };
+}
+
+async function requestScriptureText(reference) {
   const normalizedReference = normalizeReference(reference);
   let cachedPassage = generatedPassageCache.get(normalizedReference);
   if (!cachedPassage && generatedPassagesPromise) {
     await generatedPassagesPromise;
     cachedPassage = generatedPassageCache.get(normalizedReference);
   }
-  if (cachedPassage?.text) return cachedPassage.text;
+  if (cachedPassage?.text) {
+    return {
+      text: cachedPassage.text,
+      translation: cachedPassage.translation || 'ESV',
+    };
+  }
 
   const savedPassage = passages.find((passage) => normalizeReference(passage.reference) === normalizedReference && passage.text);
-  if (savedPassage) return savedPassage.text;
+  if (savedPassage) {
+    return {
+      text: savedPassage.text,
+      translation: savedPassage.translation || 'ESV',
+    };
+  }
+
+  try {
+    return await requestOfflineBibleText(reference);
+  } catch (offlineError) {
+    // Local development can still use the small private-token server when the generated WEB file is absent.
+  }
 
   const response = await fetch(`/api/esv?reference=${encodeURIComponent(reference)}`);
-  if (!response.ok) throw new Error('ESV passage lookup was unavailable.');
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(`${reference} is not in the generated scripture libraries yet. Run the GitHub Pages deploy workflow, or paste text manually.`);
+    }
+    throw new Error('Scripture lookup was unavailable.');
+  }
   const data = await response.json();
   const passage = data.passages?.join(' ').replace(/\s+/g, ' ').trim();
   if (!passage) throw new Error('No ESV scripture text came back for that reference.');
-  return passage;
+  return {
+    text: passage,
+    translation: 'ESV',
+  };
 }
 
 async function fetchScripture() {
   const reference = currentReference();
-  setMessage(`Looking up ${reference} in the ESV...`);
+  setMessage(`Looking up ${reference}...`);
   elements.lookupButton.disabled = true;
   try {
-    elements.scriptureText.value = await requestEsvText(reference);
-    setMessage(`Found ${reference} in the ESV. Add a title, review the text, then save it.`);
+    const passage = await requestScriptureText(reference);
+    elements.scriptureText.value = passage.text;
+    pendingTranslation = passage.translation;
+    setMessage(`Found ${reference} in the ${passage.translation}. Add a title, review the text, then save it.`);
   } catch (error) {
-    setMessage(`${error.message} You can still paste ESV text below and save it.`);
+    setMessage(`${error.message} You can still paste scripture text below and save it.`);
   } finally {
     elements.lookupButton.disabled = false;
   }
@@ -233,13 +324,13 @@ async function fetchScripture() {
 async function fetchActivePassage() {
   const activePassage = passages.find((passage) => passage.id === activeId);
   if (!activePassage) return;
-  setMessage(`Looking up ${activePassage.reference} in the ESV...`);
+  setMessage(`Looking up ${activePassage.reference}...`);
   try {
-    const text = await requestEsvText(activePassage.reference);
-    updatePassage(activePassage.id, { text, translation: 'ESV' });
-    setMessage(`${activePassage.title} now has ESV text.`);
+    const passage = await requestScriptureText(activePassage.reference);
+    updatePassage(activePassage.id, { text: passage.text, translation: passage.translation });
+    setMessage(`${activePassage.title} now has ${passage.translation} text.`);
   } catch (error) {
-    setMessage(`${error.message} You can paste ESV text into the add form if needed.`);
+    setMessage(`${error.message} You can paste scripture text into the add form if needed.`);
   }
 }
 
@@ -257,7 +348,7 @@ function addPassage(event) {
     title,
     reference,
     text,
-    translation: 'ESV',
+    translation: pendingTranslation,
     memorized: false,
   };
   activeId = newPassage.id;
@@ -265,6 +356,7 @@ function addPassage(event) {
   revealed = true;
   elements.titleInput.value = '';
   elements.scriptureText.value = '';
+  pendingTranslation = 'ESV';
   setMessage(`${title} was added to your memory deck.`);
   persist([newPassage, ...passages]);
 }
@@ -302,7 +394,11 @@ function wireEvents() {
   elements.lookupButton.addEventListener('click', fetchScripture);
   elements.clearButton.addEventListener('click', () => {
     elements.scriptureText.value = '';
+    pendingTranslation = 'ESV';
     setMessage('');
+  });
+  elements.scriptureText.addEventListener('input', () => {
+    pendingTranslation = 'Custom';
   });
   elements.addForm.addEventListener('submit', addPassage);
 
@@ -386,16 +482,21 @@ async function hydrateMissingStarterText() {
   const missing = passages.filter((passage) => !passage.text);
   if (!missing.length) return;
 
+  let changed = false;
   for (const passage of missing) {
-    try {
-      const text = await requestEsvText(passage.reference);
-      passages = passages.map((candidate) => candidate.id === passage.id ? { ...candidate, text, translation: 'ESV' } : candidate);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(passages));
-      render();
-    } catch (error) {
-      setMessage('Automatic ESV lookup is not available here. If this is GitHub Pages, add the ESV_API_TOKEN repository secret and redeploy, or use a hosted API proxy for new lookups.');
-      return;
-    }
+    const generatedPassage = generatedPassageCache.get(normalizeReference(passage.reference));
+    if (!generatedPassage?.text) continue;
+    passages = passages.map((candidate) => (
+      candidate.id === passage.id
+        ? { ...candidate, text: generatedPassage.text, translation: generatedPassage.translation || candidate.translation || 'ESV' }
+        : candidate
+    ));
+    changed = true;
+  }
+
+  if (changed) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(passages));
+    render();
   }
 }
 
