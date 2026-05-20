@@ -1,6 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 
+const starterReferencesPath = path.join(__dirname, '..', 'src', 'starter-references.json');
 const extraReferencesPath = path.join(__dirname, '..', 'src', 'extra-references.json');
 
 function normalizeReference(reference) {
@@ -8,9 +9,13 @@ function normalizeReference(reference) {
 }
 
 async function readExtraReferences() {
+  return readReferences(extraReferencesPath);
+}
+
+async function readReferences(filePath) {
   try {
-    const references = JSON.parse(await fs.readFile(extraReferencesPath, 'utf8'));
-    if (!Array.isArray(references)) throw new Error('src/extra-references.json must contain a JSON array.');
+    const references = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    if (!Array.isArray(references)) throw new Error(`${filePath} must contain a JSON array.`);
     return references;
   } catch (error) {
     if (error.code === 'ENOENT') return [];
@@ -26,12 +31,14 @@ async function main() {
   if (reference.length > 120) throw new Error('PASSAGE_REFERENCE is too long.');
   if (title.length > 80) throw new Error('PASSAGE_TITLE is too long.');
 
+  const starterReferences = await readReferences(starterReferencesPath);
   const references = await readExtraReferences();
   const nextReference = { title: title || reference, reference };
-  const existing = references.find((candidate) => normalizeReference(candidate.reference || '') === normalizeReference(reference));
+  const existing = [...starterReferences, ...references]
+    .find((candidate) => normalizeReference(candidate.reference || '') === normalizeReference(reference));
 
   if (existing) {
-    console.log(`${reference} is already listed in src/extra-references.json.`);
+    console.log(`${reference} is already listed in the GitHub lookup library.`);
     return;
   }
 
