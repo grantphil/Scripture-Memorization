@@ -1,2 +1,4 @@
 src/starter-passages.generated.json
+src/web-bible.generated.json
+web-gutenberg.txt
 .env
