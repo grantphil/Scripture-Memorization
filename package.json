@@ -1,7 +1,7 @@
 {
   "scripts": {
     "start": "node server.js",
-    "build": "node --check src/app.js && node --check server.js && node --check scripts/fetch-esv-passages.js && node --check scripts/add-reference.js && node --check scripts/check-no-secrets.js && npm run check:secrets",
+    "build": "node --check src/app.js && node --check src/deck-random.js && node --check server.js && node --check scripts/fetch-esv-passages.js && node --check scripts/add-reference.js && node --check scripts/check-no-secrets.js && npm run check:secrets",
     "check:secrets": "node scripts/check-no-secrets.js",
     "fetch:esv": "node scripts/fetch-esv-passages.js"
   },
