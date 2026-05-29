@@ -25,7 +25,10 @@
         <aside class="deck-panel">
           <div class="panel-heading">
             <h2>Your Scripture Deck</h2>
-            <span id="cardCount">0 cards</span>
+            <div class="deck-controls">
+              <button class="deck-random-button" type="button" data-shuffle-deck aria-label="Shuffle scripture deck into a random order">&#128256; Random</button>
+              <span id="cardCount">0 cards</span>
+            </div>
           </div>
           <input id="searchBox" class="search-box" placeholder="Search title, reference, or words..." />
           <div id="passageList" class="passage-list"></div>
