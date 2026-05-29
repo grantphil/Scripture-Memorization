@@ -164,6 +164,22 @@ h2 {
   justify-content: space-between;
 }
 
+.deck-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.deck-random-button {
+  background: #2f4f46;
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 0.55rem 0.8rem;
+  white-space: nowrap;
+}
+
 .panel-heading span {
   background: #f8dfb4;
   border-radius: 999px;
@@ -204,23 +220,33 @@ textarea:focus {
 }
 
 .passage-row {
-  align-items: flex-start;
+  align-items: start;
   background: #fff8ed;
   border: 1px solid transparent;
   border-radius: 18px;
   color: #26323f;
   display: grid;
   gap: 0.2rem;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
   justify-items: start;
   padding: 0.9rem 1rem;
   position: relative;
   text-align: left;
+  width: 100%;
 }
 
 .passage-row.active {
   background: #2f4f46;
   border-color: #2f4f46;
   color: #fff;
+}
+
+.passage-row strong,
+.passage-row span {
+  display: block;
+  text-align: left;
+  width: 100%;
 }
 
 .passage-row span {
@@ -235,6 +261,7 @@ textarea:focus {
   position: absolute;
   right: 0.8rem;
   top: 0.8rem;
+  width: auto;
 }
 
 .study-card {
@@ -398,6 +425,16 @@ textarea {
   .deck-panel,
   .study-card {
     min-height: auto;
+  }
+
+  .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .deck-controls {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .mode-switcher,
